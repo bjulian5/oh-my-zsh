@@ -69,6 +69,24 @@ __git_find_repo_path ()
 	fi
 }
 
+
+tag_format_regex="^([0-9]+)\.([0-9]+)\.([0-9]+)$"
+jira_regex="[A-Z]+-[0-9]+"
+
+# $1 the hash of the commit
+# Returns
+get_commit_message() {
+  git log -n 1 --no-decorate --pretty=%B "$1"
+}
+
+get_jira_tag() {
+last=$(get_commit_message "$1")
+if [[ "$last" =~ $jira_regex ]]; then
+  	jira_num="${BASH_REMATCH[0]}"
+fi
+echo ${jira_num}
+}
+
 # Deprecated: use __git_find_repo_path() and $__git_repo_path instead
 # __gitdir accepts 0 or 1 arguments (i.e., location)
 # returns location of .git repo
@@ -1337,6 +1355,14 @@ _git_commit ()
 	case "$prev" in
 	-c|-C)
 		__git_complete_refs
+		return
+		;;
+	esac
+
+	case "$cur" in
+	-m*|-M*)
+		jira_num=$(get_jira_tag "HEAD")
+		__gitcomp "${jira_num}" "-m 'J=" "${cur##-m}"
 		return
 		;;
 	esac
