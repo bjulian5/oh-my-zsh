@@ -80,7 +80,6 @@ echo $(git log -n 1 --no-decorate --pretty=%B "$1")
 }
 
 get_jira_tag() {
-setopt local_options BASH_REMATCH
 last=$(get_commit_message "$1")
 if [[ "$last" =~ $jira_regex ]]; then
   	jira_num="${BASH_REMATCH[0]}"
@@ -89,25 +88,29 @@ echo ${jira_num}
 }
 
 get_jira_tags() {
-if [[ -d .git ]] || git rev-parse --git-dir > /dev/null 2>&1
-then
+if [[ -d .git ]] || git rev-parse --git-dir > /dev/null 2>&1; then
+    setopt local_options BASH_REMATCH > /dev/null 2>&1
+
     local counter=0
-    local jira_num=""
-    local jira_nums_array=()
-    for ((i = 0; i < 15 && $counter < 5; i++))
+    jira_num=""
+    jira_nums_array=()
+
+    #get jira tag from branch name
+    local branchName=$(git branch | grep \* | cut -d ' ' -f2)
+    last=${branchName}
+    if [[ "$last" =~ $jira_regex ]]; then
+        jira_num="${BASH_REMATCH[0]}"
+        jira_nums_array+=("$jira_num")
+        counter=$((counter+1))
+    fi
+
+    for ((i = 0; i < 3 && $counter < 3; i++))
        do
        last=$(get_commit_message "HEAD~${i}")
        if [[ "$last" =~ $jira_regex ]]; then
-            if [[ "$0" == "-bash" || "$0" == "/bin/bash" ]]
-            then
-                jira_num="${BASH_REMATCH[0]}"
-            else
-                setopt local_options BASH_REMATCH
-                jira_num="${BASH_REMATCH[0]}"
-            fi
-
-           jira_nums_array+=("$jira_num")
-           counter=$((counter+1))
+            jira_num="${BASH_REMATCH[0]}"
+            jira_nums_array+=("$jira_num")
+            counter=$((counter+1))
        fi
     done
     echo $(printf "%s\n" "${jira_nums_array[@]}" |sort -u | tr '\n' ' ')
