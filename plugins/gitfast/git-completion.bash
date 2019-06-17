@@ -76,13 +76,11 @@ jira_regex="[A-Z]+-[0-9]+"
 # $1 the hash of the commit
 # Returns
 get_commit_message() {
-if [[ "$(git rev-parse --is-inside-work-tree)" == "true" ]]
-then
-  echo $(git log -n 1 --no-decorate --pretty=%B "$1")
- fi
+echo $(git log -n 1 --no-decorate --pretty=%B "$1")
 }
 
 get_jira_tag() {
+setopt local_options BASH_REMATCH
 last=$(get_commit_message "$1")
 if [[ "$last" =~ $jira_regex ]]; then
   	jira_num="${BASH_REMATCH[0]}"
@@ -91,23 +89,29 @@ echo ${jira_num}
 }
 
 get_jira_tags() {
-#Check if we are in zsh
-if [[ "$0" == "/bin/zsh" ]]
+if [[ -d .git ]] || git rev-parse --git-dir > /dev/null 2>&1
 then
-    setopt local_options BASH_REMATCH
+    local counter=0
+    local jira_num=""
+    local jira_nums_array=()
+    for ((i = 0; i < 15 && $counter < 5; i++))
+       do
+       last=$(get_commit_message "HEAD~${i}")
+       if [[ "$last" =~ $jira_regex ]]; then
+            if [[ "$0" == "-bash" || "$0" == "/bin/bash" ]]
+            then
+                jira_num="${BASH_REMATCH[0]}"
+            else
+                setopt local_options BASH_REMATCH
+                jira_num="${BASH_REMATCH[0]}"
+            fi
+
+           jira_nums_array+=("$jira_num")
+           counter=$((counter+1))
+       fi
+    done
+    echo $(printf "%s\n" "${jira_nums_array[@]}" |sort -u | tr '\n' ' ')
 fi
-local counter=0
-local jira_nums_array=()
-for ((i = 0; i < 15 && $counter < 5; i++))
-   do
-   last=$(get_commit_message "HEAD~${i}")
-   if [[ "$last" =~ $jira_regex ]]; then
-  	   jira_num="${BASH_REMATCH[0]}"
-  	   jira_nums_array+=("$jira_num")
-  	   counter=$((counter+1))
-   fi
-done
-echo $(printf "%s\n" "${jira_nums_array[@]}" |sort -u | tr '\n' ' ')
 }
 
 # Deprecated: use __git_find_repo_path() and $__git_repo_path instead
@@ -1382,22 +1386,35 @@ _git_commit ()
 		;;
 	esac
 
-	case "$cur" in
-	\'J=*)
-		jira_num=$(get_jira_tags)
-		__gitcomp "${jira_num}
-		    " "" "${cur#*\'J=}"
-		return
-		;;
-	esac
+	#Check if we are in bash
+    if [[ "$0" == "-bash" || "$0" == "/bin/bash" ]]
+    then
+        case "$cur" in
+	    \'J=*)
+            jira_num=$(get_jira_tags)
+            __gitcomp "${jira_num}
+                " "J=" "${cur##\'J=}"
+            return
+            ;;
+	    esac
+    fi
 
-#	case "$prev" in
-#	-m|-M)
-#	    jira_num=$(get_jira_tags)
-#		__gitcomp "${jira_num}" "'J=" "" ""
-#		return
-#		;;
-#	esac
+	case "$cur" in
+    \'J=*)
+        jira_num=$(get_jira_tags)
+        __gitcomp "${jira_num}
+            " "" "${cur##\'J=}"
+        return
+            ;;
+    esac
+
+    case "$prev" in
+    -m|-M)
+        jira_num=$(get_jira_tags)
+        __gitcomp "${jira_num}" "'J=" "" ""
+        return
+        ;;
+	esac
 
 	case "$cur" in
 	--cleanup=*)
